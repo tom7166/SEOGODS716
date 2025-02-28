@@ -1,18 +1,18 @@
-/**
- * CompetitorSearchBot - A Robust Web Automation Tool
- * By MaddBlackHatter
- * 
- * This script demonstrates basic browser automation using Puppeteer
- * for competitive analysis and security testing purposes.
- * 
- * Features:
- * - Configurable search queries and targets
- * - Screenshot capability
- * - Error handling and retry logic
- * - Logging with timestamp
- * - Proxy support (optional)
- * - User-agent rotation
- */
+//**
+* CompetitorSearchBot - A Robust Web Automation Tool
+* By MaddBlackHatter
+* 
+* This script demonstrates basic browser automation using Puppeteer
+* for competitive analysis and security testing purposes.
+* 
+* Features:
+* - Configurable search queries and targets
+* - Screenshot capability
+* - Error handling and retry logic
+* - Logging with timestamp
+* - Proxy support (optional)
+* - User-agent rotation
+*/
 
 const puppeteer = require('puppeteer');
 const fs = require('fs');
@@ -20,210 +20,210 @@ const path = require('path');
 
 // Create logs and screenshots directories if they don't exist
 const setupDirectories = () => {
-  const dirs = ['logs', 'screenshots'];
-  dirs.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir);
-      console.log(`Created ${dir} directory`);
-    }
-  });
+ const dirs = ['logs', 'screenshots'];
+ dirs.forEach(dir => {
+   if (!fs.existsSync(dir)) {
+     fs.mkdirSync(dir);
+     console.log(`Created ${dir} directory`);
+   }
+ });
 };
 
 // Logger function
 const log = (message, type = 'INFO') => {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] [${type}] ${message}`;
-  console.log(logMessage);
-  
-  const logFile = path.join('logs', `run-${new Date().toISOString().split('T')[0]}.log`);
-  fs.appendFileSync(logFile, logMessage + '\n');
+ const timestamp = new Date().toISOString();
+ const logMessage = `[${timestamp}] [${type}] ${message}`;
+ console.log(logMessage);
+ 
+ const logFile = path.join('logs', `run-${new Date().toISOString().split('T')[0]}.log`);
+ fs.appendFileSync(logFile, logMessage + '\n');
 };
 
 // List of possible user agents to rotate
 const userAgents = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36'
+ 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+ 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
+ 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36'
 ];
 
 // Config - Edit these parameters as needed
 const config = {
-  search: {
-    query: 'Uship reviews',       // Search query to use
-    targetDomain: 'montway.io',   // Target domain to look for
-    searchEngine: 'https://www.google.com/search?q=', // Search engine URL
-  },
-  browser: {
-    headless: false,              // Set to true for production
-    timeout: 30000,               // Default timeout in ms
-    screenshots: true,            // Take screenshots during execution
-    userAgentRotation: true,      // Rotate user agents
-    retries: 3,                   // Number of retries on failure
-  },
-  proxy: {
-    enabled: false,               // Enable proxy
-    server: 'http://proxy-server:port',  // Your proxy server
-    username: '',                 // Optional proxy username
-    password: '',                 // Optional proxy password
-  }
+ search: {
+   query: 'Maddblackhatter',     // Search query to use
+   targetDomain: 'example.com',  // Target domain to look for
+   searchEngine: 'https://www.google.com/search?q=', // Search engine URL
+ },
+ browser: {
+   headless: false,              // Set to true for production
+   timeout: 30000,               // Default timeout in ms
+   screenshots: true,            // Take screenshots during execution
+   userAgentRotation: true,      // Rotate user agents
+   retries: 3,                   // Number of retries on failure
+ },
+ proxy: {
+   enabled: false,               // Enable proxy
+   server: 'http://proxy-server:port',  // Your proxy server
+   username: '',                 // Optional proxy username
+   password: '',                 // Optional proxy password
+ }
 };
 
 /**
- * Main function that runs the browser automation
- */
+* Main function that runs the browser automation
+*/
 async function runCompetitorSearch() {
-  setupDirectories();
-  log('Starting CompetitorSearchBot');
-  
-  let browser;
-  let attempts = 0;
-  
-  while (attempts < config.browser.retries) {
-    try {
-      attempts++;
-      log(`Attempt ${attempts} of ${config.browser.retries}`);
-      
-      // Setup browser launch options
-      const launchOptions = {
-        headless: config.browser.headless,
-        timeout: config.browser.timeout,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu',
-        ]
-      };
-      
-      // Add proxy if enabled
-      if (config.proxy.enabled) {
-        log('Using proxy server', 'CONFIG');
-        launchOptions.args.push(`--proxy-server=${config.proxy.server}`);
-      }
-      
-      // Launch browser
-      browser = await puppeteer.launch(launchOptions);
-      const page = await browser.newPage();
-      
-      // Set viewport
-      await page.setViewport({ width: 1366, height: 768 });
-      
-      // Rotate user agent if enabled
-      if (config.browser.userAgentRotation) {
-        const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
-        await page.setUserAgent(userAgent);
-        log(`Using user agent: ${userAgent}`, 'CONFIG');
-      }
-      
-      // Set proxy credentials if needed
-      if (config.proxy.enabled && config.proxy.username && config.proxy.password) {
-        await page.authenticate({
-          username: config.proxy.username,
-          password: config.proxy.password
-        });
-      }
-      
-      // Construct search URL and navigate
-      const searchUrl = `${config.search.searchEngine}${encodeURIComponent(config.search.query)}`;
-      log(`Navigating to search engine: ${searchUrl}`);
-      await page.goto(searchUrl, { waitUntil: 'networkidle2' });
-      
-      if (config.browser.screenshots) {
-        await page.screenshot({ 
-          path: `screenshots/search-${Date.now()}.png`,
-          fullPage: true 
-        });
-        log('Saved search page screenshot');
-      }
-      
-      // Wait for search results to load
-      await page.waitForSelector('div[data-hveid]', { timeout: config.browser.timeout });
-      log('Search results loaded');
-      
-      // Look for target domain in search results
-      log(`Looking for links containing domain: ${config.search.targetDomain}`);
-      const links = await page.$x(`//a[contains(@href, '${config.search.targetDomain}')]`);
-      
-      if (links.length > 0) {
-        log(`Found ${links.length} links matching target domain`);
-        
-        // Get the URL of the first matching link
-        const href = await page.evaluate(el => el.href, await links[0].getProperty('href'));
-        log(`Target URL: ${href}`);
-        
-        // Click the link
-        await Promise.all([
-          page.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.browser.timeout }),
-          links[0].click()
-        ]);
-        
-        log(`✅ Successfully navigated to competitor site`, 'SUCCESS');
-        
-        if (config.browser.screenshots) {
-          await page.screenshot({ 
-            path: `screenshots/competitor-${Date.now()}.png`,
-            fullPage: true 
-          });
-          log('Saved competitor page screenshot');
-        }
-        
-        // Example: Extract information from the competitor site
-        const title = await page.title();
-        log(`Page title: ${title}`);
-        
-        // You can add more scraping logic here
-        
-        // Success - exit retry loop
-        break;
-      } else {
-        log(`⚠️ No links found containing domain: ${config.search.targetDomain}`, 'WARNING');
-        
-        if (attempts < config.browser.retries) {
-          log(`Retrying... (${attempts}/${config.browser.retries})`);
-          if (browser) await browser.close();
-          await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
-        }
-      }
-    } catch (error) {
-      log(`❌ Error: ${error.message}`, 'ERROR');
-      
-      if (attempts < config.browser.retries) {
-        log(`Retrying... (${attempts}/${config.browser.retries})`);
-        if (browser) await browser.close();
-        await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
-      }
-    }
-  }
-  
-  // Close browser
-  if (browser) {
-    await browser.close();
-    log('Browser closed');
-  }
-  
-  log('CompetitorSearchBot completed');
+ setupDirectories();
+ log('Starting CompetitorSearchBot');
+ 
+ let browser;
+ let attempts = 0;
+ 
+ while (attempts < config.browser.retries) {
+   try {
+     attempts++;
+     log(`Attempt ${attempts} of ${config.browser.retries}`);
+     
+     // Setup browser launch options
+     const launchOptions = {
+       headless: config.browser.headless,
+       timeout: config.browser.timeout,
+       args: [
+         '--no-sandbox',
+         '--disable-setuid-sandbox',
+         '--disable-dev-shm-usage',
+         '--disable-accelerated-2d-canvas',
+         '--disable-gpu',
+       ]
+     };
+     
+     // Add proxy if enabled
+     if (config.proxy.enabled) {
+       log('Using proxy server', 'CONFIG');
+       launchOptions.args.push(`--proxy-server=${config.proxy.server}`);
+     }
+     
+     // Launch browser
+     browser = await puppeteer.launch(launchOptions);
+     const page = await browser.newPage();
+     
+     // Set viewport
+     await page.setViewport({ width: 1366, height: 768 });
+     
+     // Rotate user agent if enabled
+     if (config.browser.userAgentRotation) {
+       const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+       await page.setUserAgent(userAgent);
+       log(`Using user agent: ${userAgent}`, 'CONFIG');
+     }
+     
+     // Set proxy credentials if needed
+     if (config.proxy.enabled && config.proxy.username && config.proxy.password) {
+       await page.authenticate({
+         username: config.proxy.username,
+         password: config.proxy.password
+       });
+     }
+     
+     // Construct search URL and navigate
+     const searchUrl = `${config.search.searchEngine}${encodeURIComponent(config.search.query)}`;
+     log(`Navigating to search engine: ${searchUrl}`);
+     await page.goto(searchUrl, { waitUntil: 'networkidle2' });
+     
+     if (config.browser.screenshots) {
+       await page.screenshot({ 
+         path: `screenshots/search-${Date.now()}.png`,
+         fullPage: true 
+       });
+       log('Saved search page screenshot');
+     }
+     
+     // Wait for search results to load
+     await page.waitForSelector('div[data-hveid]', { timeout: config.browser.timeout });
+     log('Search results loaded');
+     
+     // Look for target domain in search results
+     log(`Looking for links containing domain: ${config.search.targetDomain}`);
+     const links = await page.$x(`//a[contains(@href, '${config.search.targetDomain}')]`);
+     
+     if (links.length > 0) {
+       log(`Found ${links.length} links matching target domain`);
+       
+       // Get the URL of the first matching link
+       const href = await page.evaluate(el => el.href, await links[0].getProperty('href'));
+       log(`Target URL: ${href}`);
+       
+       // Click the link
+       await Promise.all([
+         page.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.browser.timeout }),
+         links[0].click()
+       ]);
+       
+       log(`✅ Successfully navigated to target site`, 'SUCCESS');
+       
+       if (config.browser.screenshots) {
+         await page.screenshot({ 
+           path: `screenshots/target-${Date.now()}.png`,
+           fullPage: true 
+         });
+         log('Saved target page screenshot');
+       }
+       
+       // Example: Extract information from the target site
+       const title = await page.title();
+       log(`Page title: ${title}`);
+       
+       // You can add more scraping logic here
+       
+       // Success - exit retry loop
+       break;
+     } else {
+       log(`⚠️ No links found containing domain: ${config.search.targetDomain}`, 'WARNING');
+       
+       if (attempts < config.browser.retries) {
+         log(`Retrying... (${attempts}/${config.browser.retries})`);
+         if (browser) await browser.close();
+         await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
+       }
+     }
+   } catch (error) {
+     log(`❌ Error: ${error.message}`, 'ERROR');
+     
+     if (attempts < config.browser.retries) {
+       log(`Retrying... (${attempts}/${config.browser.retries})`);
+       if (browser) await browser.close();
+       await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
+     }
+   }
+ }
+ 
+ // Close browser
+ if (browser) {
+   await browser.close();
+   log('Browser closed');
+ }
+ 
+ log('CompetitorSearchBot completed');
 }
 
 // Self-executing function - Just run the file with Node.js
 (async () => {
-  try {
-    await runCompetitorSearch();
-  } catch (error) {
-    console.error(`Fatal error: ${error.message}`);
-    process.exit(1);
-  }
+ try {
+   await runCompetitorSearch();
+ } catch (error) {
+   console.error(`Fatal error: ${error.message}`);
+   process.exit(1);
+ }
 })();
 
 /**
- * Usage:
- * 1. Install dependencies: npm install puppeteer
- * 2. Modify the config object as needed
- * 3. Run: node script-name.js
- *
- * Security Considerations:
- * - Use with caution and only on websites you have permission to access
- * - Consider rate limiting to avoid IP blocks
- * - Respect robots.txt and terms of service
- * - Use headless mode and proxy for anonymity in production
- */
+* Usage:
+* 1. Install dependencies: npm install puppeteer
+* 2. Modify the config object as needed
+* 3. Run: node script-name.js
+*
+* Security Considerations:
+* - Use with caution and only on websites you have permission to access
+* - Consider rate limiting to avoid IP blocks
+* - Respect robots.txt and terms of service
+* - Use headless mode and proxy for anonymity in production
+*/
