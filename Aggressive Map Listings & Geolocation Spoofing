@@ -1,0 +1,346 @@
+/**
+ * SchemaExtractor - Advanced Web Schema Parser
+ * By MaddBlackHatter
+ * 
+ * This script searches for websites and extracts structured schema data
+ * for competitive analysis and research purposes.
+ * 
+ * Features:
+ * - Automatically extracts JSON-LD schema data from websites
+ * - Anonymizes sensitive information
+ * - Screenshots capability
+ * - Error handling and retry logic
+ * - Logging with timestamp
+ * - Proxy support (optional)
+ * - User-agent rotation
+ */
+
+const puppeteer = require('puppeteer');
+const fs = require('fs');
+const path = require('path');
+
+// Create logs, data, and screenshots directories if they don't exist
+const setupDirectories = () => {
+  const dirs = ['logs', 'screenshots', 'data'];
+  dirs.forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir);
+      console.log(`Created ${dir} directory`);
+    }
+  });
+};
+
+// Logger function
+const log = (message, type = 'INFO') => {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] [${type}] ${message}`;
+  console.log(logMessage);
+  
+  const logFile = path.join('logs', `run-${new Date().toISOString().split('T')[0]}.log`);
+  fs.appendFileSync(logFile, logMessage + '\n');
+};
+
+// List of possible user agents to rotate
+const userAgents = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36'
+];
+
+// Config - Edit these parameters as needed
+const config = {
+  search: {
+    query: 'maddblackhatter',     // Default search query
+    targetDomain: 'example.com',  // Target domain to look for
+    searchEngine: 'https://www.google.com/search?q=', // Search engine URL
+  },
+  browser: {
+    headless: false,              // Set to true for production
+    timeout: 30000,               // Default timeout in ms
+    screenshots: true,            // Take screenshots during execution
+    userAgentRotation: true,      // Rotate user agents
+    retries: 3,                   // Number of retries on failure
+  },
+  proxy: {
+    enabled: false,               // Enable proxy
+    server: 'http://proxy-server:port',  // Your proxy server
+    username: '',                 // Optional proxy username
+    password: '',                 // Optional proxy password
+  },
+  extraction: {
+    anonymizePhoneNumbers: true,  // Replace phone numbers with XXXX
+    saveSchemaData: true,         // Save extracted schema to file
+    schemaTypes: [                // Schema types to specifically look for
+      'Organization', 
+      'LocalBusiness',
+      'AutoTransportCompany'
+    ]
+  }
+};
+
+/**
+ * Function to anonymize phone numbers in the extracted data
+ */
+const anonymizeData = (data) => {
+  if (!data) return data;
+  
+  // Convert to string to handle objects
+  let strData = JSON.stringify(data);
+  
+  // Replace phone numbers with XXXX
+  strData = strData.replace(/\+?[0-9]{1,3}[-\s.]?[0-9]{3}[-\s.]?[0-9]{3}[-\s.]?[0-9]{4}/g, 'XXXX-XXX-XXXX');
+  strData = strData.replace(/\(\d{3}\)\s*\d{3}[-\s.]?\d{4}/g, '(XXX) XXX-XXXX');
+  
+  try {
+    return JSON.parse(strData);
+  } catch (e) {
+    return strData;
+  }
+};
+
+/**
+ * Extract JSON-LD schema data from a page
+ */
+const extractSchemaData = async (page) => {
+  log('Extracting schema data from page...');
+  
+  const schemaData = await page.evaluate(() => {
+    const schemas = [];
+    // Get all script tags with type application/ld+json
+    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+    
+    scripts.forEach(script => {
+      try {
+        const data = JSON.parse(script.textContent);
+        schemas.push(data);
+      } catch (e) {
+        // Skip invalid JSON
+      }
+    });
+    
+    return schemas;
+  });
+  
+  if (schemaData.length === 0) {
+    log('No schema data found on the page', 'WARNING');
+    return null;
+  }
+  
+  log(`Found ${schemaData.length} schema data objects`);
+  
+  // Anonymize data if configured
+  let processedData = schemaData;
+  if (config.extraction.anonymizePhoneNumbers) {
+    processedData = anonymizeData(schemaData);
+    log('Phone numbers have been anonymized');
+  }
+  
+  return processedData;
+};
+
+/**
+ * Save schema data to file
+ */
+const saveSchemaData = (data, domain) => {
+  if (!data) return;
+  
+  const timestamp = new Date().toISOString().replace(/:/g, '-');
+  const filename = `data/schema-${domain.replace(/\./g, '_')}-${timestamp}.json`;
+  
+  fs.writeFileSync(
+    filename, 
+    JSON.stringify(data, null, 2)
+  );
+  
+  log(`Schema data saved to ${filename}`);
+};
+
+/**
+ * Main function that runs the schema extractor
+ */
+async function runSchemaExtractor() {
+  setupDirectories();
+  log('Starting SchemaExtractor Bot');
+  
+  let browser;
+  let attempts = 0;
+  
+  while (attempts < config.browser.retries) {
+    try {
+      attempts++;
+      log(`Attempt ${attempts} of ${config.browser.retries}`);
+      
+      // Setup browser launch options
+      const launchOptions = {
+        headless: config.browser.headless,
+        timeout: config.browser.timeout,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu',
+        ]
+      };
+      
+      // Add proxy if enabled
+      if (config.proxy.enabled) {
+        log('Using proxy server', 'CONFIG');
+        launchOptions.args.push(`--proxy-server=${config.proxy.server}`);
+      }
+      
+      // Launch browser
+      browser = await puppeteer.launch(launchOptions);
+      const page = await browser.newPage();
+      
+      // Set viewport
+      await page.setViewport({ width: 1366, height: 768 });
+      
+      // Rotate user agent if enabled
+      if (config.browser.userAgentRotation) {
+        const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+        await page.setUserAgent(userAgent);
+        log(`Using user agent: ${userAgent}`, 'CONFIG');
+      }
+      
+      // Set proxy credentials if needed
+      if (config.proxy.enabled && config.proxy.username && config.proxy.password) {
+        await page.authenticate({
+          username: config.proxy.username,
+          password: config.proxy.password
+        });
+      }
+      
+      // Construct search URL and navigate
+      const searchUrl = `${config.search.searchEngine}${encodeURIComponent(config.search.query)}`;
+      log(`Navigating to search engine: ${searchUrl}`);
+      await page.goto(searchUrl, { waitUntil: 'networkidle2' });
+      
+      if (config.browser.screenshots) {
+        await page.screenshot({ 
+          path: `screenshots/search-${Date.now()}.png`,
+          fullPage: true 
+        });
+        log('Saved search page screenshot');
+      }
+      
+      // Wait for search results to load
+      await page.waitForSelector('div[data-hveid]', { timeout: config.browser.timeout });
+      log('Search results loaded');
+      
+      // Look for target domain in search results
+      log(`Looking for links containing domain: ${config.search.targetDomain}`);
+      const links = await page.$x(`//a[contains(@href, '${config.search.targetDomain}')]`);
+      
+      if (links.length > 0) {
+        log(`Found ${links.length} links matching target domain`);
+        
+        // Get the URL of the first matching link
+        const href = await page.evaluate(el => el.href, await links[0].getProperty('href'));
+        log(`Target URL: ${href}`);
+        
+        // Click the link
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.browser.timeout }),
+          links[0].click()
+        ]);
+        
+        log(`✅ Successfully navigated to target site`, 'SUCCESS');
+        
+        if (config.browser.screenshots) {
+          await page.screenshot({ 
+            path: `screenshots/target-${Date.now()}.png`,
+            fullPage: true 
+          });
+          log('Saved target page screenshot');
+        }
+        
+        // Extract page information
+        const title = await page.title();
+        log(`Page title: ${title}`);
+        
+        // Extract schema data
+        const schemaData = await extractSchemaData(page);
+        
+        // Save schema data if configured
+        if (config.extraction.saveSchemaData && schemaData) {
+          const domain = new URL(href).hostname;
+          saveSchemaData(schemaData, domain);
+        }
+        
+        // Success - exit retry loop
+        break;
+      } else {
+        log(`⚠️ No links found containing domain: ${config.search.targetDomain}`, 'WARNING');
+        
+        if (attempts < config.browser.retries) {
+          log(`Retrying... (${attempts}/${config.browser.retries})`);
+          if (browser) await browser.close();
+          await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
+        }
+      }
+    } catch (error) {
+      log(`❌ Error: ${error.message}`, 'ERROR');
+      
+      if (attempts < config.browser.retries) {
+        log(`Retrying... (${attempts}/${config.browser.retries})`);
+        if (browser) await browser.close();
+        await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
+      }
+    }
+  }
+  
+  // Close browser
+  if (browser) {
+    await browser.close();
+    log('Browser closed');
+  }
+  
+  log('SchemaExtractor Bot completed');
+}
+
+// Example schema data for reference
+const exampleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Example Company",
+  "address": [
+    {
+      "@type": "PostalAddress",
+      "streetAddress": "123 Main St",
+      "addressLocality": "San Francisco",
+      "addressRegion": "CA",
+      "postalCode": "94105",
+      "addressCountry": "US"
+    }
+  ],
+  "url": "https://example.com",
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "telephone": "XXXX-XXX-XXXX",
+    "contactType": "customer service"
+  }
+};
+
+// Self-executing function - Just run the file with Node.js
+(async () => {
+  try {
+    await runSchemaExtractor();
+  } catch (error) {
+    console.error(`Fatal error: ${error.message}`);
+    process.exit(1);
+  }
+})();
+
+/**
+ * Usage:
+ * 1. Install dependencies: npm install puppeteer
+ * 2. Modify the config object as needed
+ * 3. Run: node schema-extractor.js
+ *
+ * Security Considerations:
+ * - Use with caution and only on websites you have permission to access
+ * - Consider rate limiting to avoid IP blocks
+ * - Respect robots.txt and terms of service
+ * - Use headless mode and proxy for anonymity in production
+ */
